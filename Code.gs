@@ -13,8 +13,20 @@ function print() {
       }
       ptoEvents = userMap.get(email);
       for (let pto of ptoEvents) {
-        let title = pto.getSummary();
-        // CalendarApp.getCalendarById(calendarId).createEvent()
+        let title = email.concat(" - OOO");
+        if (pto.start.date) {
+          start = Utilities.parseDate(pto.start.date, 'UTC', 'yyyy-MM-dd\'T\'HH:mm:ssX');
+          end = Utilities.parseDate(pto.end.date, 'UTC', 'yyyy-MM-dd\'T\'HH:mm:ssX');
+        } else {
+          start = Utilities.parseDate(pto.start.dateTime, 'UTC', 'yyyy-MM-dd\'T\'HH:mm:ssX');
+          end = Utilities.parseDate(pto.end.dateTime, 'UTC', 'yyyy-MM-dd\'T\'HH:mm:ssX');
+        }
+        let calendar = CalendarApp.getCalendarById(calendarId);
+        if (calendar === null) {
+          console.error("No calendar found under %s", calendarId);
+        } else {
+          calendar.createEvent(title, start, end);
+        }
       }
     }
   }
