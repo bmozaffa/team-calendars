@@ -8,7 +8,15 @@ function sync() {
   let userMap = new Map();
   let nameMap = new Map();
   for (let [calendarId, emails] of calendarMap) {
+    let resolvedEmails = [];
     for (let email of emails) {
+      try {
+        resolvedEmails = resolvedEmails.concat(getAllMembers(email));
+      } catch (e) {
+        resolvedEmails.push(email);
+      }
+    }
+    for (let email of resolvedEmails) {
       if (!userMap.has(email)) {
         userMap.set(email, getUserPTO(email));
         nameMap.set(email, getDisplayName(email));
@@ -101,16 +109,11 @@ function getAllMembers(groupEmail) {
     users = users.concat(getAllMembers(childGroup.getEmail()));
   }
   // Remove duplicate members
-  var uniqueUsers = [];
-  var userEmails = {};
+  let userEmails = new Set();
   for (var i = 0; i < users.length; i++) {
-    var user = users[i];
-    if (!userEmails[user.getEmail()]) {
-      uniqueUsers.push(user);
-      userEmails[user.getEmail()] = true;
-    }
+    userEmails.add(users[i].getEmail());
   }
-  return uniqueUsers;
+  return Array.from(userEmails);
 }
 
 function getDisplayName(email) {
