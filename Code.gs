@@ -14,18 +14,20 @@ function sync() {
       ptoEvents = userMap.get(email);
       for (let pto of ptoEvents) {
         let title = email.concat(" - OOO");
+        let start;
+        let end;
         if (pto.start.date) {
-          start = Utilities.parseDate(pto.start.date, 'UTC', 'yyyy-MM-dd\'T\'HH:mm:ssX');
-          end = Utilities.parseDate(pto.end.date, 'UTC', 'yyyy-MM-dd\'T\'HH:mm:ssX');
+          start = parseDate(pto.start.date);
+          end = parseDate(pto.end.date);
         } else {
-          start = Utilities.parseDate(pto.start.dateTime, 'UTC', 'yyyy-MM-dd\'T\'HH:mm:ssX');
-          end = Utilities.parseDate(pto.end.dateTime, 'UTC', 'yyyy-MM-dd\'T\'HH:mm:ssX');
+          start = parseDateTime(pto.start.dateTime);
+          end = parseDateTime(pto.end.dateTime);
         }
         let calendar = CalendarApp.getCalendarById(calendarId);
         if (calendar === null) {
           console.error("No calendar found under %s", calendarId);
         } else {
-          calendar.createEvent(title, start, end);
+          calendar.createAllDayEvent(title, start, end);
         }
       }
     }
@@ -65,14 +67,18 @@ function include(event) {
     //If a date and not a dateTime, this is a full day event as entered
     return true;
   } else {
-    let start = parseDate(event.start.dateTime);
-    let end = parseDate(event.end.dateTime);
-    return hoursBetween(start, end) > 4;
+    let start = parseDateTime(event.start.dateTime);
+    let end = parseDateTime(event.end.dateTime);
+    return hoursBetween(start, end) > 23;
   }
 }
 
-function parseDate(dateTime) {
-  return Utilities.parseDate(dateTime, "UTC", 'yyyy-MM-dd\'T\'HH:mm:ssX');
+function parseDateTime(dateTime) {
+  return parseDate(dateTime.substring(0, 10));
+}
+
+function parseDate(date) {
+  return Utilities.parseDate(date, Intl.DateTimeFormat().resolvedOptions().timeZone, 'yyyy-MM-dd');
 }
 
 function hoursBetween(startDate, endDate) {
