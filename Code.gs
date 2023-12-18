@@ -6,14 +6,16 @@ nextYear.setFullYear(nextYear.getFullYear() + 1);
 function sync() {
   let calendarMap = getTeamCalendarSetup();
   let userMap = new Map();
+  let nameMap = new Map();
   for (let [calendarId, emails] of calendarMap) {
     for (let email of emails) {
       if (!userMap.has(email)) {
         userMap.set(email, getUserPTO(email));
+        nameMap.set(email, getDisplayName(email));
       }
       ptoEvents = userMap.get(email);
       for (let pto of ptoEvents) {
-        let title = email.concat(" - OOO");
+        let title = nameMap.get(email).concat(" - OOO");
         let start;
         let end;
         if (pto.start.date) {
@@ -83,4 +85,45 @@ function parseDate(date) {
 
 function hoursBetween(startDate, endDate) {
   return (endDate - startDate) / 3600000;
+}
+
+/**
+* Get both direct and indirect members (and delete duplicates).
+* @param {string} the e-mail address of the group.
+* @return {object} direct and indirect members.
+*/
+function getAllMembers(groupEmail) {
+  var group = GroupsApp.getGroupByEmail(groupEmail);
+  var users = group.getUsers();
+  var childGroups = group.getGroups();
+  for (var i = 0; i < childGroups.length; i++) {
+    var childGroup = childGroups[i];
+    users = users.concat(getAllMembers(childGroup.getEmail()));
+  }
+  // Remove duplicate members
+  var uniqueUsers = [];
+  var userEmails = {};
+  for (var i = 0; i < users.length; i++) {
+    var user = users[i];
+    if (!userEmails[user.getEmail()]) {
+      uniqueUsers.push(user);
+      userEmails[user.getEmail()] = true;
+    }
+  }
+  return uniqueUsers;
+}
+
+function getDisplayName(email) {
+  let person = People.People.searchDirectoryPeople({
+    readMask: 'names',
+    query: email,
+    sources: [
+      'DIRECTORY_SOURCE_TYPE_DOMAIN_PROFILE'
+    ]
+  });
+  if (person.totalSize === 1) {
+    return  person.people[0].names[0].displayName;
+  } else {
+    return email;
+  }
 }
