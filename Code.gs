@@ -5,10 +5,14 @@ nextYear.setFullYear(nextYear.getFullYear() + 1);
 
 function sync() {
   let syncTime = new Date();
-  let calendarSetupArray = getTeamCalendarSetup();
   let userMap = new Map();
   let nameMap = new Map();
-  for (let calendarSetup of calendarSetupArray) {
+  for (let calendarSetup of getTeamCalendarSetup()) {
+    let calendar = CalendarApp.getCalendarById(calendarSetup.calendarId);
+    if (calendar === null) {
+      console.error("No calendar found under %s", calendarSetup.calendarId);
+      continue;
+    }
     let optSince = calendarSetup.lastRun;
     let resolvedEmails = [];
     for (let email of calendarSetup.emails) {
@@ -25,73 +29,52 @@ function sync() {
         nameMap.set(email, getDisplayName(email));
       }
       for (let pto of userMap.get(email).userPTO) {
-        if (pto.status === 'canceled') {
-          //TODO find and delete from calendar
-        } else {
-          //TODO later figure out updates too!
-          let title = nameMap.get(email).concat(" - OOO");
-          let start;
-          let end;
-          if (pto.start.date) {
-            start = parseDate(pto.start.date);
-            end = parseDate(pto.end.date);
-          } else {
-            start = parseDateTime(pto.start.dateTime);
-            end = parseDateTime(pto.end.dateTime);
+        let imported = calendar.getEvents(lastWeek, nextYear, {search: pto.htmlLink});
+        if (pto.status === 'cancelled') {
+          for (let existing of imported) {
+            if (imported.length > 1) {
+              console.log("Duplicate team calendar event found for entry: %s", existing);
+            }
+            existing.deleteEvent();
+            console.log("Deleted event for %s", pto.htmlLink);
           }
-          let calendar = CalendarApp.getCalendarById(calendarSetup.calendarId);
-          if (calendar === null) {
-            console.error("No calendar found under %s", calendarSetup.calendarId);
+        } else {
+          let mappedEvent = mapEvent(nameMap.get(email), pto.start, pto.end);
+          if (imported.length === 0) {
+            if (calendar === null) {
+              console.error("No calendar found under %s", calendarSetup.calendarId);
+            } else {
+              calendar.createAllDayEvent(mappedEvent.title, mappedEvent.start, mappedEvent.end, {description: pto.htmlLink});
+              console.log("Created all day event for %s", pto);
+            }
           } else {
-            calendar.createAllDayEvent(title, start, end);
+            for (let existing of imported) {
+              if (imported.length > 1) {
+                console.log("Duplicate team calendar event found for entry: %s", existing);
+              }
+              existing.setTime(mappedEvent.start, mappedEvent.end);
+              console.log("Updated event for %s", pto.htmlLink);
+            }
           }
         }
-        console.log(pto);
       }
     }
     getCalendarSheet().getRange(calendarSetup.row, 3, 1, 1).setValue(syncTime);
   }
+}
 
-  // // Determines the time the the script was last run.
-  // let lastRun = PropertiesService.getScriptProperties().getProperty('lastRun');
-  // lastRun = lastRun ? new Date(lastRun) : null;
-
-  // for (let [calendarId, emails] of calendarMap) {
-  //   let resolvedEmails = [];
-  //   for (let email of emails) {
-  //     try {
-  //       resolvedEmails = resolvedEmails.concat(getAllMembers(email));
-  //     } catch (e) {
-  //       resolvedEmails.push(email);
-  //     }
-  //   }
-  //   for (let email of resolvedEmails) {
-  //     if (!userMap.has(email)) {
-  //       userMap.set(email, getUserPTO(email, lastWeek, nextYear, lastRun));
-  //       nameMap.set(email, getDisplayName(email));
-  //     }
-  //     ptoEvents = userMap.get(email);
-  //     for (let pto of ptoEvents) {
-  //       let title = nameMap.get(email).concat(" - OOO");
-  //       let start;
-  //       let end;
-  //       if (pto.start.date) {
-  //         start = parseDate(pto.start.date);
-  //         end = parseDate(pto.end.date);
-  //       } else {
-  //         start = parseDateTime(pto.start.dateTime);
-  //         end = parseDateTime(pto.end.dateTime);
-  //       }
-  //       let calendar = CalendarApp.getCalendarById(calendarId);
-  //       if (calendar === null) {
-  //         console.error("No calendar found under %s", calendarId);
-  //       } else {
-  //         calendar.createAllDayEvent(title, start, end);
-  //       }
-  //     }
-  //   }
-  // }
-  PropertiesService.getScriptProperties().setProperty('lastRun', new Date());
+function mapEvent(name, origStart, origEnd) {
+  let title = name.concat(" - OOO");
+  let start;
+  let end;
+  if (origStart.date) {
+    start = parseDate(origStart.date);
+    end = parseDate(origEnd.date);
+  } else {
+    start = parseDateTime(origStart.dateTime);
+    end = parseDateTime(origEnd.dateTime);
+  }
+  return {title, start, end};
 }
 
 function getTeamCalendarSetup() {
