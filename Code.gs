@@ -1,6 +1,6 @@
 let lastWeek = new Date();
 lastWeek.setDate(lastWeek.getDate() - 7);
-let nextYear = new Date();
+const nextYear = new Date();
 nextYear.setFullYear(nextYear.getFullYear() + 1);
 
 function sync() {
@@ -26,7 +26,6 @@ function sync() {
       if (!userMap.has(email) || isAfter(userMap.get(email).optSince, optSince)) {
         let userPTO = getUserPTO(email, lastWeek, nextYear, optSince);
         userMap.set(email, {optSince, userPTO});
-        nameMap.set(email, getDisplayName(email));
       }
       for (let pto of userMap.get(email).userPTO) {
         let imported = calendar.getEvents(lastWeek, nextYear, {search: pto.htmlLink});
@@ -39,14 +38,13 @@ function sync() {
             console.log("Deleted event for %s", pto.htmlLink);
           }
         } else {
+          if (!nameMap.has(email)) {
+            nameMap.set(email, getDisplayName(email));
+          }
           let mappedEvent = mapEvent(nameMap.get(email), pto.start, pto.end);
           if (imported.length === 0) {
-            if (calendar === null) {
-              console.error("No calendar found under %s", calendarSetup.calendarId);
-            } else {
-              calendar.createAllDayEvent(mappedEvent.title, mappedEvent.start, mappedEvent.end, {description: pto.htmlLink});
-              console.log("Created all day event for %s", pto);
-            }
+            calendar.createAllDayEvent(mappedEvent.title, mappedEvent.start, mappedEvent.end, {description: pto.htmlLink});
+            console.log("Created all day event for %s", pto);
           } else {
             for (let existing of imported) {
               if (imported.length > 1) {
@@ -182,10 +180,10 @@ function hoursBetween(startDate, endDate) {
 }
 
 /**
-* Get both direct and indirect members (and delete duplicates).
-* @param {string} the e-mail address of the group.
-* @return {object} direct and indirect members.
-*/
+ * Get both direct and indirect members (and delete duplicates).
+ * @param {string} the e-mail address of the group.
+ * @return {object} direct and indirect members.
+ */
 function getAllMembers(groupEmail) {
   var group = GroupsApp.getGroupByEmail(groupEmail);
   var users = group.getUsers();
