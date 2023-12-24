@@ -38,11 +38,11 @@ function sync() {
             console.log("Deleted event for %s", pto.htmlLink);
           }
         } else {
-          if (!nameMap.has(email)) {
-            nameMap.set(email, getDisplayName(email));
-          }
-          let mappedEvent = mapEvent(nameMap.get(email), pto.start, pto.end);
           if (imported.length === 0) {
+            if (!nameMap.has(email)) {
+              nameMap.set(email, getDisplayName(email));
+            }
+            let mappedEvent = mapEvent(nameMap.get(email), pto.start, pto.end);
             calendar.createAllDayEvent(mappedEvent.title, mappedEvent.start, mappedEvent.end, {description: pto.htmlLink});
             console.log("Created all day event for %s", pto);
           } else {
@@ -50,6 +50,8 @@ function sync() {
               if (imported.length > 1) {
                 console.log("Duplicate team calendar event found for entry: %s", existing);
               }
+              //Just updating start and end, so no need for person name
+              let mappedEvent = mapEvent(email, pto.start, pto.end);
               existing.setTime(mappedEvent.start, mappedEvent.end);
               console.log("Updated event for %s", pto.htmlLink);
             }
@@ -181,20 +183,20 @@ function hoursBetween(startDate, endDate) {
 
 /**
  * Get both direct and indirect members (and delete duplicates).
- * @param {string} the e-mail address of the group.
+ * @param {string} groupEmail the e-mail address of the group.
  * @return {object} direct and indirect members.
  */
 function getAllMembers(groupEmail) {
   var group = GroupsApp.getGroupByEmail(groupEmail);
   var users = group.getUsers();
   var childGroups = group.getGroups();
-  for (var i = 0; i < childGroups.length; i++) {
+  for (let i = 0; i < childGroups.length; i++) {
     var childGroup = childGroups[i];
     users = users.concat(getAllMembers(childGroup.getEmail()));
   }
   // Remove duplicate members
   let userEmails = new Set();
-  for (var i = 0; i < users.length; i++) {
+  for (let i = 0; i < users.length; i++) {
     userEmails.add(users[i].getEmail());
   }
   return Array.from(userEmails);
