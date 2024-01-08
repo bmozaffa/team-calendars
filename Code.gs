@@ -59,7 +59,7 @@ function sync() {
         }
       }
     }
-    getCalendarSheet().getRange(calendarSetup.row, 3, 1, 1).setValue(syncTime);
+    getCalendarSheet().getRange(calendarSetup.row, 5, 1, 1).setValue(syncTime);
   }
 }
 
@@ -81,10 +81,10 @@ function getTeamCalendarSetup() {
   let calendarSetup = [];
   let sheet = getCalendarSheet();
   for (let row = 2; row <= sheet.getLastRow(); row++) {
-    let calendarId = sheet.getRange(row, 1, 1, 1).getValue();
+    let calendarId = sheet.getRange(row, 4, 1, 1).getValue();
     if (calendarId.length > 0 ) {
       let emails = sheet.getRange(row, 2, 1, 1).getValue().split(',');
-      let lastRun = sheet.getRange(row, 3, 1, 1).getValue();
+      let lastRun = sheet.getRange(row, 5, 1, 1).getValue();
       calendarSetup.push({calendarId, emails, row, lastRun});
     }
   }
