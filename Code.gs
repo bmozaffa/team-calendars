@@ -10,7 +10,7 @@ function sync() {
   for (let calendarSetup of getTeamCalendarSetup()) {
     let calendar = CalendarApp.getCalendarById(calendarSetup.calendarId);
     if (calendar === null) {
-      console.error("No calendar found under %s", calendarSetup.calendarId);
+      Logger.log("No calendar found under " + calendarSetup.calendarId);
       continue;
     }
     let optSince = calendarSetup.lastRun;
@@ -32,10 +32,10 @@ function sync() {
         if (pto.status === 'cancelled') {
           for (let existing of imported) {
             if (imported.length > 1) {
-              console.log("Duplicate team calendar event found for entry: %s", existing);
+              Logger.log("Duplicate team calendar event found for entry: " + existing);
             }
             existing.deleteEvent();
-            console.log("Deleted event for %s", pto.htmlLink);
+            Logger.log("Deleted event for " + pto.htmlLink);
           }
         } else {
           if (imported.length === 0) {
@@ -44,16 +44,16 @@ function sync() {
             }
             let mappedEvent = mapEvent(nameMap.get(email), pto.start, pto.end);
             calendar.createAllDayEvent(mappedEvent.title, mappedEvent.start, mappedEvent.end, {description: pto.htmlLink});
-            console.log("Created all day event for %s", pto);
+            Logger.log("Created all day event for " + pto);
           } else {
             for (let existing of imported) {
               if (imported.length > 1) {
-                console.log("Duplicate team calendar event found for entry: %s", existing);
+                Logger.log("Duplicate team calendar event found for entry: " + existing);
               }
               //Just updating start and end, so no need for person name
               let mappedEvent = mapEvent(email, pto.start, pto.end);
               existing.setTime(mappedEvent.start, mappedEvent.end);
-              console.log("Updated event for %s", pto.htmlLink);
+              Logger.log("Updated event for " + pto.htmlLink);
             }
           }
         }
@@ -126,8 +126,7 @@ function getUserPTO(email, start, end, optSince) {
     try {
       response = Calendar.Events.list(email, params);
     } catch (e) {
-      console.error('Error retriving events for %s: %s; skipping',
-          email, e.toString());
+      Logger.log('Error retrieving events for ' + email + ': ' + e.toString() + '; skipping');
       continue;
     }
     events = events.concat(response.items.filter(function(event) {
