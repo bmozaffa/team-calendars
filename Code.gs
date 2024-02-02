@@ -52,7 +52,7 @@ function sync() {
               }
               //Just updating start and end, so no need for person name
               let mappedEvent = mapEvent(email, pto.start, pto.end);
-              existing.setTime(mappedEvent.start, mappedEvent.end);
+              existing.setAllDayDates(mappedEvent.start, mappedEvent.end);
               Logger.log("Updated event for " + pto.htmlLink);
             }
           }
