@@ -2,18 +2,14 @@ let lastWeek = new Date();
 lastWeek.setDate(lastWeek.getDate() - 7);
 const nextYear = new Date();
 nextYear.setFullYear(nextYear.getFullYear() + 1);
+const knownGroups = new Map();
+const knownUsers = new Set();
+
 
 function sync() {
-  let syncTime = new Date();
   let userMap = new Map();
-  let nameMap = new Map();
-  for (let calendarSetup of getTeamCalendarSetup()) {
-    let calendar = CalendarApp.getCalendarById(calendarSetup.calendarId);
-    if (calendar === null) {
-      Logger.log("No calendar found under " + calendarSetup.calendarId);
-      continue;
-    }
-    let optSince = calendarSetup.lastRun;
+  const calendars = getTeamCalendarSetup();
+  for (let calendarSetup of calendars) {
     let resolvedEmails = [];
     for (let email of calendarSetup.emails) {
       try {
@@ -22,11 +18,30 @@ function sync() {
         resolvedEmails.push(email);
       }
     }
+    calendarSetup.resolvedEmails = resolvedEmails;
+
+    const optSince = calendarSetup.lastRun;
     for (let email of resolvedEmails) {
       if (!userMap.has(email) || isAfter(userMap.get(email).optSince, optSince)) {
-        let userPTO = getUserPTO(email, lastWeek, nextYear, optSince);
-        userMap.set(email, {optSince, userPTO});
+        userMap.set(email, {optSince});
       }
+    }
+  }
+  for (const [email, json] of userMap) {
+    const optSince = json.optSince;
+    const userPTO = getUserPTO(email, lastWeek, nextYear, optSince);
+    json.userPTO = userPTO;
+  }
+
+  let syncTime = new Date();
+  let nameMap = new Map();
+  for (let calendarSetup of calendars) {
+    let calendar = CalendarApp.getCalendarById(calendarSetup.calendarId);
+    if (calendar === null) {
+      Logger.log("No calendar found under " + calendarSetup.calendarId);
+      continue;
+    }
+    for (let email of calendarSetup.resolvedEmails) {
       for (let pto of userMap.get(email).userPTO) {
         let imported = calendar.getEvents(lastWeek, nextYear, {search: pto.htmlLink});
         if (pto.status === 'cancelled') {
@@ -43,8 +58,13 @@ function sync() {
               nameMap.set(email, getDisplayName(email));
             }
             let mappedEvent = mapEvent(nameMap.get(email), pto.start, pto.end);
-            calendar.createAllDayEvent(mappedEvent.title, mappedEvent.start, mappedEvent.end, {description: pto.htmlLink});
-            Logger.log("Created all day event for " + pto);
+            try {
+              calendar.createAllDayEvent(mappedEvent.title, mappedEvent.start, mappedEvent.end, {description: pto.htmlLink});
+              Logger.log("Created all day event for " + pto + " in " + calendarSetup.calendarId);
+            } catch( error ) {
+              Logger.log('Error creating all day event for ' + pto + " in " + calendarSetup.calendarId);
+              continue;
+            }
           } else {
             for (let existing of imported) {
               if (imported.length > 1) {
@@ -83,7 +103,7 @@ function getTeamCalendarSetup() {
   for (let row = 2; row <= sheet.getLastRow(); row++) {
     let calendarId = sheet.getRange(row, 4, 1, 1).getValue();
     if (calendarId.length > 0 ) {
-      let emails = sheet.getRange(row, 2, 1, 1).getValue().split(',');
+      let emails = sheet.getRange(row, 2, 1, 1).getValue().split(',').map(entry => entry.trim());
       let lastRun = sheet.getRange(row, 5, 1, 1).getValue();
       calendarSetup.push({calendarId, emails, row, lastRun});
     }
@@ -186,6 +206,11 @@ function hoursBetween(startDate, endDate) {
  * @return {object} direct and indirect members.
  */
 function getAllMembers(groupEmail) {
+  if (knownGroups.has(groupEmail)) {
+    return knownGroups.get(groupEmail);
+  } else if (knownUsers.has(groupEmail)) {
+    return groupEmail;
+  }
   var group = GroupsApp.getGroupByEmail(groupEmail);
   var users = group.getUsers();
   var childGroups = group.getGroups();
@@ -197,8 +222,11 @@ function getAllMembers(groupEmail) {
   let userEmails = new Set();
   for (let i = 0; i < users.length; i++) {
     userEmails.add(users[i].getEmail());
+    knownUsers.add(users[i].getEmail()); //For efficiency and later use
   }
-  return Array.from(userEmails);
+  const members = Array.from(userEmails);
+  knownGroups.set(groupEmail, members)
+  return members;
 }
 
 function getDisplayName(email) {
