@@ -4,7 +4,7 @@ const nextYear = new Date();
 nextYear.setFullYear(nextYear.getFullYear() + 1);
 const knownGroups = new Map();
 const knownUsers = new Set();
-
+let errors = false;
 
 function sync() {
   let userMap = new Map();
@@ -63,7 +63,7 @@ function sync() {
               Logger.log("Created all day event for " + pto + " in " + calendarSetup.calendarId);
             } catch( error ) {
               Logger.log('Error creating all day event for ' + pto + " in " + calendarSetup.calendarId);
-              continue;
+              errors = true;
             }
           } else {
             for (let existing of imported) {
@@ -79,7 +79,9 @@ function sync() {
         }
       }
     }
-    getCalendarSheet().getRange(calendarSetup.row, 5, 1, 1).setValue(syncTime);
+    if (!errors) {
+      getCalendarSheet().getRange(calendarSetup.row, 5, 1, 1).setValue(syncTime);
+    }
   }
 }
 
@@ -147,6 +149,7 @@ function getUserPTO(email, start, end, optSince) {
       response = Calendar.Events.list(email, params);
     } catch (e) {
       Logger.log('Error retrieving events for ' + email + ': ' + e.toString() + '; skipping');
+      errors = true;
       continue;
     }
     events = events.concat(response.items.filter(function(event) {
