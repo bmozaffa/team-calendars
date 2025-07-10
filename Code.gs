@@ -15,7 +15,13 @@ function sync() {
       try {
         resolvedEmails = resolvedEmails.concat(getAllMembers(email));
       } catch (e) {
-        resolvedEmails.push(email);
+        if(e.message.includes("Service invoked too many times")) {
+          Logger.log("Hit API rate limiting will sleep 5 seconds and try again");
+          Utilities.sleep(5000);
+          resolvedEmails = resolvedEmails.concat(getAllMembers(email));
+        } else {
+          resolvedEmails.push(email);
+        }
       }
     }
     calendarSetup.resolvedEmails = resolvedEmails;
