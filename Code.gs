@@ -7,22 +7,13 @@ const knownUsers = new Set();
 let errors = false;
 
 function sync() {
+  addKnownTeamMembersFromSheet();
   let userMap = new Map();
   const calendars = getTeamCalendarSetup();
   for (let calendarSetup of calendars) {
     let resolvedEmails = [];
     for (let email of calendarSetup.emails) {
-      try {
-        resolvedEmails = resolvedEmails.concat(getAllMembers(email));
-      } catch (e) {
-        if(e.message.includes("Service invoked too many times")) {
-          Logger.log("Hit API rate limiting will sleep 5 seconds and try again");
-          Utilities.sleep(5000);
-          resolvedEmails = resolvedEmails.concat(getAllMembers(email));
-        } else {
-          resolvedEmails.push(email);
-        }
-      }
+      resolvedEmails = resolvedEmails.concat(resolvePotentialGroup(email));
     }
     calendarSetup.resolvedEmails = resolvedEmails;
 
@@ -89,6 +80,17 @@ function sync() {
       getCalendarSheet().getRange(calendarSetup.row, 5, 1, 1).setValue(syncTime);
     }
   }
+}
+
+function addKnownTeamMembersFromSheet() {
+  const roverSheet = SpreadsheetApp.openById('1i7y_tFpeO68SetmsU2t-C6LsFETuZtkJGY5AVZ2PHW8').getSheetByName('Rover');
+  const data = roverSheet.getRange(2, 3, roverSheet.getLastRow() - 1, 1).getValues(); // Column C, skip header
+  data.forEach(function(row) {
+    const email = row[0];
+    if (email && typeof email === 'string' && email.includes('@')) {
+      knownUsers.add(email.trim());
+    }
+  });
 }
 
 function mapEvent(name, origStart, origEnd) {
@@ -210,32 +212,59 @@ function hoursBetween(startDate, endDate) {
 }
 
 /**
- * Get both direct and indirect members (and delete duplicates).
- * @param {string} groupEmail the e-mail address of the group.
- * @return {object} direct and indirect members.
+ * Resolves an email to a list of user emails. If the email is a known user, returns [email].
+ * Otherwise, attempts to resolve as a group, recursively collecting all direct and indirect members.
+ * Handles API rate limiting and caches results for efficiency.
+ * @param {string} email The email address to resolve.
+ * @return {Array<string>} Array of user email addresses.
  */
-function getAllMembers(groupEmail) {
-  if (knownGroups.has(groupEmail)) {
-    return knownGroups.get(groupEmail);
-  } else if (knownUsers.has(groupEmail)) {
-    return groupEmail;
+function resolvePotentialGroup(email) {
+  // If we already know it's a user, return as single-element array
+  if (knownUsers.has(email)) {
+    return [email];
   }
-  var group = GroupsApp.getGroupByEmail(groupEmail);
-  var users = group.getUsers();
-  var childGroups = group.getGroups();
-  for (let i = 0; i < childGroups.length; i++) {
-    var childGroup = childGroups[i];
-    users = users.concat(getAllMembers(childGroup.getEmail()));
+
+  // If we've already resolved this group, return cached members
+  if (knownGroups.has(email)) {
+    return knownGroups.get(email);
   }
-  // Remove duplicate members
-  let userEmails = new Set();
-  for (let i = 0; i < users.length; i++) {
-    userEmails.add(users[i].getEmail());
-    knownUsers.add(users[i].getEmail()); //For efficiency and later use
+
+  // Try to resolve as a group
+  try {
+    // Try to get group and its members
+    var group = GroupsApp.getGroupByEmail(email);
+    var users = group.getUsers();
+    var childGroups = group.getGroups();
+
+    // Recursively collect all members from child groups
+    for (let i = 0; i < childGroups.length; i++) {
+      var childGroup = childGroups[i];
+      users = users.concat(resolvePotentialGroup(childGroup.getEmail()));
+    }
+
+    // Remove duplicates and cache user emails
+    let userEmails = new Set();
+    for (let i = 0; i < users.length; i++) {
+      // If users[i] is a string (from recursion), use directly; else, getEmail()
+      let userEmail = typeof users[i] === 'string' ? users[i] : users[i].getEmail();
+      userEmails.add(userEmail);
+      knownUsers.add(userEmail); // For efficiency and later use
+    }
+    const members = Array.from(userEmails);
+    knownGroups.set(email, members);
+    return members;
+  } catch (e) {
+    if (e.message && e.message.includes("Service invoked too many times")) {
+      Logger.log("Hit API rate limiting will sleep 5 seconds and try again");
+      Utilities.sleep(5000);
+      // Try again after sleeping
+      return resolvePotentialGroup(email);
+    } else {
+      // If not a group, treat as user and cache
+      knownUsers.add(email);
+      return [email];
+    }
   }
-  const members = Array.from(userEmails);
-  knownGroups.set(groupEmail, members)
-  return members;
 }
 
 function getDisplayName(email) {
